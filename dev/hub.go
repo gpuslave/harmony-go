@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"path/filepath"
 
 	"fmt"
 
@@ -87,15 +88,21 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.ServeFile(w, r, "home.html")
+	testFilePath := filepath.Join("web", "html", "test.html")
+	// homeFilePath := filepath.Join("web", "html", "home.html")
+
+	http.ServeFile(w, r, testFilePath)
 }
 
 func main() {
+	fmt.Println("Init server...")
 	flag.Parse()
 	hub := newHub()
 	go hub.run()
+	fmt.Println("Hub successfully run.")
 
 	http.HandleFunc("/", serveHome)
+
 	// http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 	// 	serveWs(hub, w, r)
 	// })
@@ -104,5 +111,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Listend and serve", err)
 	}
-	fmt.Println("hello")
+
+	fmt.Println("done.")
 }
