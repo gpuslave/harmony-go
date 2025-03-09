@@ -1,3 +1,4 @@
-# This is harmony-go side project
+# [in early dev] This is harmony-go project
+  
 
 authored-by: gpuslave
