@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harmony Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="chat-container">
+        <header class="chat-header">
+            <h1>Harmony Chat</h1>
+            <div id="connection-status" class="connection-status connected">Connected</div>
+        </header>
+        
+        <div id="log" class="chat-messages"></div>
+        
+        <form id="form" class="message-form">
+            <input type="text" id="msg" placeholder="Type a message..." autofocus />
+            <button type="submit">Send</button>
+        </form>
+    </div>
+    
+    <script src="/js/script.js"></script>
+</body>
+</html>
