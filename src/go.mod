@@ -1,4 +1,4 @@
-module gpuslave/harmony-go-dev
+module github.com/gpuslave/harmony-go
 
 go 1.23.5
 

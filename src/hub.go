@@ -166,7 +166,7 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	testFilePath := filepath.Join("web", "html", "home.html")
+	testFilePath := filepath.Join("web", "test", "html", "index.html")
 	// homeFilePath := filepath.Join("web", "html", "home.html")
 
 	http.ServeFile(w, r, testFilePath)
@@ -194,6 +194,10 @@ func main() {
 	fmt.Println("Hub successfully run.")
 
 	http.HandleFunc("/", serveHome)
+
+	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("web/test/css"))))
+	http.Handle("/js/", http.StripPrefix("/js/", http.FileServer(http.Dir("web/test/js"))))
+
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(hub, w, r)
 	})
