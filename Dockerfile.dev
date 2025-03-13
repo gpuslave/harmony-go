@@ -1,27 +1,29 @@
+# ----- BASE
+FROM golang:1.23-alpine AS build-base
 
-# BUILD
-FROM golang:1.23 AS build-stage
+ENV SRC_DIR=src
 
-ENV SRCDIR=src
+# ----- BUILD
+FROM build-base AS build-stage
 
 WORKDIR /app
 
-COPY ${SRCDIR}/go.mod ${SRCDIR}/go.sum ./
-COPY ${SRCDIR}/web /web 
+COPY ${SRC_DIR}/go.mod ${SRC_DIR}/go.sum ./
 RUN go mod download
 
-COPY ${SRCDIR}/*.go ./
+COPY ${SRC_DIR}/*.go ./
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o /harmony-go
 
-# RELEASE
+# ----- RELEASE
 FROM gcr.io/distroless/base-debian11 AS release-stage
+
+ENV SRC_DIR=src
 
 WORKDIR /
 
 COPY --from=build-stage /harmony-go /harmony-go
-COPY --from=build-stage /web /web
-
+COPY ${SRC_DIR}/web /web 
 
 EXPOSE 8080
 
