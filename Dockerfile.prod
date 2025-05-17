@@ -1,0 +1,11 @@
+FROM gcr.io/distroless/base-debian11
+ARG BINARY_NAME
+
+USER nonroot:nonroot
+
+EXPOSE 8080
+
+COPY src/web /web
+COPY ${BINARY_NAME} /harmony-go
+
+ENTRYPOINT [ "/harmony-go" ]
