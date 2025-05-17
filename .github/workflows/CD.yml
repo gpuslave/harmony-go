@@ -33,5 +33,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: harmony-bin
-          path: harmony-go 
-        working-directory: ./src
+          path: src/harmony-go 
