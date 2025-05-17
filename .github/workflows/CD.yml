@@ -1,0 +1,37 @@
+name: Continuous Delivery
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: 'harmony-go'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with: 
+          go-version: '1.23.5'
+
+      - name: Go module dependencies
+        run: |
+          go mod download
+
+      - name: Build
+        working-directory: ./src
+        run: |
+          go build -o harmony-go ./src
+      
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harmony-bin
+          path: harmony-go 
+        working-directory: ./src
