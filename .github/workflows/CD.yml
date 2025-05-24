@@ -125,7 +125,7 @@ jobs:
       - name: Check pods
         run: |
           yc config profile create sa-profile
-          yc config set service-account-key <(echo "${{ secrets.SA_KEY }}")
+          yc config set service-account-key ./sa_key.json
           yc config set folder-id ${{ secrets.FOLDER_ID}}
           yc config set cloud-id ${{ secrets.CLOUD_ID}}
           rm -rf ./sa_key.json
