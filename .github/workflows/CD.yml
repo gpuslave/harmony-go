@@ -46,12 +46,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check pods
+      - name: Install YC CLI
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+
+      - name : Run SSH Tunnel
         run: |
           mkdir -p ./.ssh
           touch ./.ssh/bastion && chmod 600 ./.ssh/bastion
           echo "${{ secrets.BASTION_KEY }}" > ./.ssh/bastion
-          ssh -T -i "./.ssh/bastion" \
+
+          ssh -f -N \
+            -i "./.ssh/bastion" \
+            -D 1080 \
             -o StrictHostKeyChecking=no \
             ${{ secrets.BASTION_USER }}@${{ secrets.BASTION_HOSTNAME }}
-          echo "hello"
+
+      - name: Check pods
+        run: |
+          touch ./SA_KEY && chmod 600 ./SA_KEY
+          echo "${{ secrets.SA_KEY }}" > ./SA_KEY
+
+          yc config profile create sa-profile
+          yc config set service-account-key ./SA_KEY
+          export YC_TOKEN=$(yc iam create-token)
+          rm -rf ./SA_KEY
+
+          yc managed-kubernetes cluster get-credentials --internal --name ${{ vars.CLUSTER_NAME }}
+          kubectl get pods -A
