@@ -82,4 +82,11 @@ jobs:
           rm -rf ./sa_key.json
 
           yc managed-kubernetes cluster get-credentials --internal --name ${{ vars.CLUSTER_NAME }}
+          KUBECTL_CLUSTER=$(kubectl config view -o jsonpath="{.clusters[0].name}")
+          kubectl config set-cluster "$KUBECTL_CLUSTER" \
+            --proxy-url="socks5://localhost:1080"
+          
+          echo "DEBUG:"
+          kubectl config view
+
           kubectl get pods -A
