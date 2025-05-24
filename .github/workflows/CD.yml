@@ -183,7 +183,7 @@ jobs:
     env:
       BINARY_NAME: 'harmony-bin-${{ needs.compile.outputs.git_sha }}'
     outputs:
-      image_full_name: ${{ steps.push-image.outputs.image_full_name}}
+      image_full_name: ${{ steps.build-image.outputs.image_full_name}}
 
     steps:
       - uses: actions/checkout@v4
@@ -204,6 +204,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Build Docker Image
+        id: build-image
         run: |-
           IMAGE_FULL_NAME="ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ needs.setup.outputs.image_tag }}"
           echo "image_full_name=${IMAGE_FULL_NAME}" >> $GITHUB_OUTPUT
@@ -217,7 +218,7 @@ jobs:
       - name: Push Docker Image
         id: push-image
         run: |-
-          docker push "${IMAGE_FULL_NAME}"
+          docker push "${{ steps.build-image.outputs.image_full_name }}"
 
   deploy:
     runs-on: ubuntu-latest
