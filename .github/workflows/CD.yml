@@ -210,7 +210,7 @@ jobs:
           IMAGE_FULL_NAME="ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ needs.setup.outputs.image_tag }}"
           echo "image_full_name=${IMAGE_FULL_NAME}" >> $GITHUB_OUTPUT
 
-          docker build \ 
+          docker build \
             -f "Dockerfile.prod" \
             -t "${IMAGE_FULL_NAME}" \
             --build-arg "BINARY_NAME=${{ env.BINARY_NAME }}" \
