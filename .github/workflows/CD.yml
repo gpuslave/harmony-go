@@ -2,21 +2,107 @@ name: Continuous Delivery
 
 on:
   pull_request:
-    branches:
-      - 'main'
+    branches: [ 'main', 'dev' ]
+    types: [ 'opened', 'synchronize', 'closed' ]
+
   push:
     branches: [ 'main' ]
 
   workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - 'deploy'
+          - 'undeploy'
+      environment_name:
+        description: 'Environment_name'
+        required: true
+        default: 'dev'
+        type: string
+      image_tag:
+        description: 'Image tag'
+        required: false
+        default: 'latest'
+        type: string
+
 
 env:
   IMAGE_NAME: 'harmony-go'
 
 jobs:
-  build:
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.determine.outputs.should_deploy }}
+      should_undeploy: ${{ steps.determine.outputs.should_undeploy }}
+      namespace: ${{ steps.determine.outputs.namespace }}
+      image_tag: ${{ steps.determine.outputs.image_tag }}
+      release_name: ${{ steps.determine.outputs.release_name }}
+
+    steps:
+      - name: Determine Deployment Parameters
+        id: determine
+        run: |-
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            if [[ "${{ github.event.action }}" == "closed" ]]; then
+              # PR MERGED OR CLOSED
+              echo "should_deploy=false" >> $GITHUB_OUTPUT
+              echo "should_undeploy=true" >> $GITHUB_OUTPUT
+              NAMESPACE="dev-pr-${{ github.event.number }}"
+            else
+              # PR OPENED OR UPDATED
+              echo "should_deploy=true" >> $GITHUB_OUTPUT
+              echo "should_undeploy=false" >> $GITHUB_OUTPUT
+              NAMESPACE="dev-pr-${{ github.event.number }}"
+              IMAGE_TAG="dev-pr-${{ github.event.number }}-${{ github.run_id }}"
+            fi
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            # PUSH TO MAIN - DEPLOY TO PRODUCTION
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "should_undeploy=false" >> $GITHUB_OUTPUT
+            NAMESPACE="production"
+            IMAGE_TAG="latest"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # MANUAL TRIGGER
+            if [[ "${{ github.event.inputs.action }}" == "deploy" ]]; then
+              echo "should_deploy=true" >> $GITHUB_OUTPUT
+              echo "should_undeploy=false" >> $GITHUB_OUTPUT
+              NAMESPACE="${{ github.event.inputs.environment_name }}"
+              IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+            else
+              echo "should_deploy=false" >> $GITHUB_OUTPUT
+              echo "should_undeploy=true" >> $GITHUB_OUTPUT
+              NAMESPACE="${{ github.event.inputs.environment_name }}"
+            fi
+          fi
+
+          RELEASE_NAME="harmony-${NAMESPACE}"
+
+          echo "namespace=${NAMESPACE}" >> $GITHUB_OUTPUT
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+          
+          echo "Event: ${{ github.event_name }}"
+          echo "Action: ${{ github.event.action }}"
+          echo "Namespace: ${NAMESPACE}"
+          echo "Image tag: ${IMAGE_TAG}"
+          echo "Should deploy: $(echo $should_deploy)"
+          echo "Should undeploy: $(echo $should_undeploy)"
+
+  compile:
+    runs-on: ubuntu-latest
+    needs: [ 'setup' ]
+    if: needs.setup.outputs.should_deploy == 'true'
+
     permissions:
       contents: read
+    outputs:
+      git_sha: ${{ steps.build-bin.outputs.git_sha }}
+      digest: ${{ steps.build-bin.outputs.digest }}
 
     steps:
       - uses: actions/checkout@v4
@@ -28,13 +114,13 @@ jobs:
             src/go.sum 
 
       - name: Download Go Dependencies
-        working-directory: ./src
+        working-directory: src/
         run: |
           go mod download
 
       - name: Build Binary
         id: build-bin
-        working-directory: ./src
+        working-directory: src/
         run: |
           CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o harmony-go
           echo "digest=$(sha256sum harmony-go | cut -d' ' -f1)" >> $GITHUB_OUTPUT
@@ -48,6 +134,9 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    needs: [ 'setup' ]
+    if: needs.setup.outputs.should_deploy == 'true'
+
     permissions:
       contents: read
 
@@ -64,7 +153,7 @@ jobs:
             src/go.sum 
 
       - name: Download Go Dependencies
-        working-directory: ./src
+        working-directory: src/
         run: |
           go mod download
 
@@ -85,9 +174,57 @@ jobs:
             exit ${PIPESTATUS[0]}
           fi
 
+  build-image:
+    runs-on: ubuntu-latest
+    needs: [ 'setup', 'compile', 'test' ]
+    if: needs.setup.outputs.should_deploy == 'true'
+
+    permissions:
+      packages: write
+      contents: read
+    env:
+      BINARY_NAME: 'harmony-bin-${{ needs.compile.outputs.git_sha }}'
+    outputs:
+      image_full_name: ${{ steps.push-image.outputs.image_full_name}}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout:
+            src/web
+            Dockerfile.prod
+            .dockerignore
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.BINARY_NAME }}
+      
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build Docker Image
+        run: |-
+          IMAGE_FULL_NAME="ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ needs.setup.outputs.image_tag }}"
+          echo "image_full_name=${IMAGE_FULL_NAME}" >> $GITHUB_OUTPUT
+
+          docker build \ 
+            -f "Dockerfile.prod" \
+            -t "${IMAGE_FULL_NAME}" \
+            --build-arg "BINARY_NAME=${{ env.BINARY_NAME }}" \
+            .
+
+      - name: Push Docker Image
+        id: push-image
+        run: |-
+          docker push "${IMAGE_FULL_NAME}"
+
   deploy:
     runs-on: ubuntu-latest
-    needs: [ 'build', 'test' ]
+    needs: [ 'setup', 'build-image' ]
+    if: needs.setup.outputs.should_deploy == 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -99,7 +236,7 @@ jobs:
           echo "$HOME/yandex-cloud/bin" >> $GITHUB_PATH
 
       # NOTE: May impove security with /dev/shm/ssh/
-      - name : Run SSH Tunnel
+      - name: Run SSH Tunnel
         run: |
           mkdir -p ./.ssh
           touch ./.ssh/bastion && chmod 600 ./.ssh/bastion
@@ -122,7 +259,7 @@ jobs:
             ${{ secrets.SA_KEY }}
           EOF
 
-      - name: Check pods
+      - name: Configure kubectl
         run: |
           yc config profile create sa-profile
           yc config set service-account-key ./sa_key.json
@@ -137,14 +274,157 @@ jobs:
           KUBECTL_CLUSTER=$(kubectl config view -o jsonpath="{.clusters[0].name}")
           kubectl config set-cluster "$KUBECTL_CLUSTER" \
             --proxy-url="socks5://localhost:1080"
-          
-          kubectl get pods -A
+
+      - name: Deploy with Helm
+        run: >-
+          helm upgrade
+          --install
+          --namespace ${{ needs.setup.outputs.namespace }}
+          --create-namespace
+          ${{ needs.setup.outputs.release_name }}
+          ./charts/harmony
+          --set image.repository="ghcr.io/${{ github.repository }}"
+          --set image.tag=${{ needs.setup.outputs.image_tag }}
+          --set image.pullPolicy=Always
+          --atomic
+          --wait-for-jobs
+          --timeout=7m
+
+      - name: Generate Deployment Summary
+        run: |-
+          echo "### Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Namespace:** ${{ needs.setup.outputs.namespace }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release:** ${{ needs.setup.outputs.release_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ needs.build-image.outputs.image_full_name }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Add PR comment with deployment info
+        if: github.event_name == 'pull_request' && github.event.action != 'closed'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const namespace = '${{ needs.setup.outputs.namespace }}';
+            const imageTag = '${{ needs.setup.outputs.image_tag }}';
+            const releaseName = '${{ needs.setup.outputs.release_name }}';
+            
+            const comment = `🚀 **PR Environment Deployed**
+            
+            - **Namespace:** \`${namespace}\`
+            - **Release:** \`${releaseName}\`
+            - **Image Tag:** \`${imageTag}\`
+            
+            This environment will be automatically cleaned up when the PR is merged or closed.`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
 
       - name: Clean up
         run: |
           rm -rf ./.ssh/bastion
 
-# echo "DEBUG:"
-# kubectl config view
+  undeploy:
+    runs-on: ubuntu-latest
+    needs: [ 'setup' ]
+    if: needs.setup.outputs.should_undeploy == 'true'
 
-# yc config set service-account-key ./sa_key.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install YC CLI
+        shell: bash
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+          echo "$HOME/yandex-cloud/bin" >> $GITHUB_PATH
+
+      # NOTE: May impove security with /dev/shm/ssh/
+      - name: Run SSH Tunnel
+        run: |
+          mkdir -p ./.ssh
+          touch ./.ssh/bastion && chmod 600 ./.ssh/bastion
+          echo "${{ secrets.BASTION_KEY }}" > ./.ssh/bastion
+
+          ssh -f -N \
+            -i "./.ssh/bastion" \
+            -D 1080 \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=3 \
+            -o ExitOnForwardFailure=yes \
+            ${{ secrets.BASTION_USER }}@${{ secrets.BASTION_HOSTNAME }}
+
+      - name: Create SA Key 
+        shell: bash
+        run: |
+          touch ./sa_key.json && chmod 600 ./sa_key.json
+          cat << 'EOF' > sa_key.json
+            ${{ secrets.SA_KEY }}
+          EOF
+
+      - name: Configure kubectl
+        run: |
+          yc config profile create sa-profile
+          yc config set service-account-key ./sa_key.json
+          yc config set folder-id ${{ secrets.FOLDER_ID}}
+          yc config set cloud-id ${{ secrets.CLOUD_ID}}
+          rm -rf ./sa_key.json
+
+          yc managed-kubernetes cluster get-credentials \
+            --internal \
+            --name ${{ vars.CLUSTER_NAME }}
+
+          KUBECTL_CLUSTER=$(kubectl config view -o jsonpath="{.clusters[0].name}")
+          kubectl config set-cluster "$KUBECTL_CLUSTER" \
+            --proxy-url="socks5://localhost:1080"
+
+      - name: Assert Namespace Existence
+        id: assert-ns
+        run: |-
+          if kubectl get ns ${{ needs.setup.outputs.namespace }} $> /dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Namespace ${{ needs.setup.outputs.namespace }} exists!"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Namespace ${{ needs.setup.outputs.namespace }} DOES NOT exist!"
+          fi
+      
+      - name: Uninstall Helm Chart
+        if: steps.assert-ns.outputs.exists == 'true'
+        run: |-
+          if helm list -n ${{ needs.setup.outputs.namespace }} | grep -q ${{ needs.setup.outputs.release_name }}; then
+            echo "Uninstalling Helm release: ${{ needs.setup.outputs.release_name }}"
+            helm uninstall ${{ needs.setup.outputs.release_name }} \
+              --namespace ${{ needs.setup.outputs.namespace }} \
+              --wait --timeout=5m
+          else
+            echo "Helm release ${{ needs.setup.outputs.release_name }} not found"
+          fi
+          
+          echo "Deleting namespace: ${{ needs.setup.outputs.namespace }}"
+          kubectl delete namespace ${{ needs.setup.outputs.namespace }} \
+            --timeout=300s --cascade foreground --wait true
+          
+          echo "### Undeploy Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Namespace deleted:** ${{ needs.setup.outputs.namespace }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release uninstalled:** ${{ needs.setup.outputs.release_name }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Add PR comment about cleanup
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && steps.assert-ns.outputs.exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const namespace = '${{ needs.setup.outputs.namespace }}';
+            
+            const comment = `🧹 **PR Environment Cleaned Up**
+            
+            The environment \`${namespace}\` has been automatically removed since this PR was closed/merged.`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
