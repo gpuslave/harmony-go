@@ -76,6 +76,8 @@ jobs:
         run: |
           yc config profile create sa-profile
           yc config set service-account-key ./sa_key.json
+          yc config set folder-id ${{ secrets.FOLDER_ID}}
+          yc config set cloud-id ${{ secrets.CLOUD_ID}}
           export YC_TOKEN=$(yc iam create-token)
           rm -rf ./sa_key.json
 
