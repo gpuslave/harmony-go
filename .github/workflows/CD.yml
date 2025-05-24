@@ -90,8 +90,6 @@ jobs:
           echo "Action: ${{ github.event.action }}"
           echo "Namespace: ${NAMESPACE}"
           echo "Image tag: ${IMAGE_TAG}"
-          echo "Should deploy: $(echo $should_deploy)"
-          echo "Should undeploy: $(echo $should_undeploy)"
 
   compile:
     runs-on: ubuntu-latest
@@ -207,6 +205,7 @@ jobs:
       
       - name: Build Docker Image
         run: |-
+          ls -al
           IMAGE_FULL_NAME="ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ needs.setup.outputs.image_tag }}"
           echo "image_full_name=${IMAGE_FULL_NAME}" >> $GITHUB_OUTPUT
 
