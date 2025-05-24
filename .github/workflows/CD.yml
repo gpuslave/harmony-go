@@ -41,8 +41,8 @@ jobs:
           path: src/harmony-go
 
   release:
-    runs-on: ubuntu:latest
-    # needs: [ build ]
+    runs-on: ubuntu-latest
+    needs: [ build ]
     steps:
       - uses: actions/checkout@v4
 
