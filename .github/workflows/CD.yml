@@ -75,7 +75,7 @@ jobs:
       - name: Check pods
         run: |
           yc config profile create sa-profile
-          yc config set service-account-key ./SA_KEY.json
+          yc config set service-account-key ./sa_key.json
           export YC_TOKEN=$(yc iam create-token)
           rm -rf ./sa_key.json
 
