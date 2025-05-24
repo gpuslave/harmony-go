@@ -385,7 +385,7 @@ jobs:
       - name: Assert Namespace Existence
         id: assert-ns
         run: |-
-          if kubectl get ns ${{ needs.setup.outputs.namespace }} $> /dev/null; then
+          if kubectl get ns ${{ needs.setup.outputs.namespace }} &> /dev/null; then
             echo "exists=true" >> $GITHUB_OUTPUT
             echo "Namespace ${{ needs.setup.outputs.namespace }} exists!"
           else
