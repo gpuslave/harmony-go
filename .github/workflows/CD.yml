@@ -295,7 +295,7 @@ jobs:
           echo "- **Namespace:** ${{ needs.setup.outputs.namespace }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Release:** ${{ needs.setup.outputs.release_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Image:** ${{ needs.build-image.outputs.image_full_name }}" >> $GITHUB_STEP_SUMMARY
-          SERVICE_IP=$(kubectl get svc --namespace ${{ needs.setup.outputs.namespace}} ${{ needs.setup.outputs.release_name }}\
+          SERVICE_IP=$(kubectl get svc --namespace ${{ needs.setup.outputs.namespace}} ${{ needs.setup.outputs.release_name }} \
           --template "{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}")
           echo "- **IP:** http://${SERVICE_IP%VIP}" >> $GITHUB_STEP_SUMMARY
 
