@@ -46,9 +46,49 @@ jobs:
           path: src/harmony-go
           retention-days: 2
 
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout:
+            src
+      
+      - uses: actions/setup-go@v5
+        with: 
+          go-version-file: 'src/go.mod'
+          cache-dependency-path: |
+            src/go.sum 
+
+      - name: Download Go Dependencies
+        working-directory: ./src
+        run: |
+          go mod download
+
+      - name: Test Application
+        working-directory: src/
+        run: |
+          go vet
+
+          echo "### Go Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+          go test -v 2>&1 | tee TEST_OUTPUT.log
+
+          cat TEST_OUTPUT.log >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            exit ${PIPESTATUS[0]}
+          fi
+
   deploy:
     runs-on: ubuntu-latest
-    needs: [ build ]
+    needs: [ 'build', 'test' ]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -85,7 +125,7 @@ jobs:
       - name: Check pods
         run: |
           yc config profile create sa-profile
-          yc config set service-account-key ./sa_key.json
+          yc config set service-account-key <(echo "${{ secrets.SA_KEY }}")
           yc config set folder-id ${{ secrets.FOLDER_ID}}
           yc config set cloud-id ${{ secrets.CLOUD_ID}}
           rm -rf ./sa_key.json
@@ -106,3 +146,5 @@ jobs:
 
 # echo "DEBUG:"
 # kubectl config view
+
+# yc config set service-account-key ./sa_key.json
