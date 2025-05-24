@@ -6,6 +6,6 @@ USER nonroot:nonroot
 EXPOSE 8080
 
 COPY src/web /web
-COPY ${BINARY_NAME} /harmony-go
+COPY --chmod=755 ${BINARY_NAME} /harmony-go
 
 ENTRYPOINT [ "/harmony-go" ]
