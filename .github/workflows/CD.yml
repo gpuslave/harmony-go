@@ -48,6 +48,6 @@ jobs:
 
       - name: Check pods
         run: |
-          touch ~/.ssh/bastion && echo "${{ secrets.BASTION_KEY }}" > ~/.ssh/bastion
-          ssh -T -i "~/.ssh/bastion" ${{ secrets.BASTION_USER }}@${{ secrets.BASTION_HOSTNAME }}
+          mkdir ./.ssh && touch ./.ssh/bastion && echo "${{ secrets.BASTION_KEY }}" > ./.ssh/bastion
+          ssh -T -i "./.ssh/bastion" ${{ secrets.BASTION_USER }}@${{ secrets.BASTION_HOSTNAME }}
           echo "hello"
