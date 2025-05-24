@@ -406,8 +406,7 @@ jobs:
           fi
           
           echo "Deleting namespace: ${{ needs.setup.outputs.namespace }}"
-          kubectl delete namespace ${{ needs.setup.outputs.namespace }} \
-            --timeout=300s --cascade foreground --wait true
+          kubectl delete namespace ${{ needs.setup.outputs.namespace }} --timeout=300s
           
           echo "### Undeploy Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Namespace deleted:** ${{ needs.setup.outputs.namespace }}" >> $GITHUB_STEP_SUMMARY
