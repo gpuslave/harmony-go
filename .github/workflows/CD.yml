@@ -64,13 +64,13 @@ jobs:
 
       - name: Check pods
         run: |
-          touch ./SA_KEY && chmod 600 ./SA_KEY
-          echo "${{ secrets.SA_KEY }}" > ./SA_KEY
+          touch ./SA_KEY.json && chmod 600 ./SA_KEY.json
+          echo "${{ secrets.SA_KEY }}" > ./SA_KEY.json
 
           yc config profile create sa-profile
-          yc config set service-account-key ./SA_KEY
+          yc config set service-account-key ./SA_KEY.json
           export YC_TOKEN=$(yc iam create-token)
-          rm -rf ./SA_KEY
+          rm -rf ./SA_KEY.json
 
           yc managed-kubernetes cluster get-credentials --internal --name ${{ vars.CLUSTER_NAME }}
           kubectl get pods -A
