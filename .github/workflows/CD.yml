@@ -13,10 +13,11 @@ env:
   IMAGE_NAME: 'harmony-go'
 
 jobs:
-  build: # TODO: add caching
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
     steps:
       - uses: actions/checkout@v4
 
@@ -25,24 +26,27 @@ jobs:
           go-version-file: 'src/go.mod'
           cache-dependency-path: |
             src/go.sum 
-          # go-version: '1.23.5'
 
-      - name: Go module dependencies
+      - name: Download Go Dependencies
         working-directory: ./src
         run: |
           go mod download
 
-      - name: Build
+      - name: Build Binary
+        id: build-bin
         working-directory: ./src
         run: |
-          go build -o harmony-go
+          CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o harmony-go
+          echo "digest=$(sha256sum harmony-go | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "git_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       
       - uses: actions/upload-artifact@v4
         with:
-          name: harmony-bin
+          name: harmony-bin-${{ steps.build-bin.outputs.git_sha }}
           path: src/harmony-go
+          retention-days: 2
 
-  release:
+  deploy:
     runs-on: ubuntu-latest
     needs: [ build ]
     steps:
@@ -54,6 +58,7 @@ jobs:
           curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
           echo "$HOME/yandex-cloud/bin" >> $GITHUB_PATH
 
+      # NOTE: May impove security with /dev/shm/ssh/
       - name : Run SSH Tunnel
         run: |
           mkdir -p ./.ssh
@@ -64,6 +69,9 @@ jobs:
             -i "./.ssh/bastion" \
             -D 1080 \
             -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=3 \
+            -o ExitOnForwardFailure=yes \
             ${{ secrets.BASTION_USER }}@${{ secrets.BASTION_HOSTNAME }}
 
       - name: Create SA Key 
@@ -80,15 +88,21 @@ jobs:
           yc config set service-account-key ./sa_key.json
           yc config set folder-id ${{ secrets.FOLDER_ID}}
           yc config set cloud-id ${{ secrets.CLOUD_ID}}
-          export YC_TOKEN=$(yc iam create-token)
           rm -rf ./sa_key.json
 
-          yc managed-kubernetes cluster get-credentials --internal --name ${{ vars.CLUSTER_NAME }}
+          yc managed-kubernetes cluster get-credentials \
+            --internal \
+            --name ${{ vars.CLUSTER_NAME }}
+
           KUBECTL_CLUSTER=$(kubectl config view -o jsonpath="{.clusters[0].name}")
           kubectl config set-cluster "$KUBECTL_CLUSTER" \
             --proxy-url="socks5://localhost:1080"
           
-          echo "DEBUG:"
-          kubectl config view
-
           kubectl get pods -A
+
+      - name: Clean up
+        run: |
+          rm -rf ./.ssh/bastion
+
+# echo "DEBUG:"
+# kubectl config view
