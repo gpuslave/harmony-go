@@ -48,6 +48,10 @@ jobs:
 
       - name: Check pods
         run: |
-          mkdir ./.ssh && touch ./.ssh/bastion && echo "${{ secrets.BASTION_KEY }}" > ./.ssh/bastion
-          ssh -T -i "./.ssh/bastion" ${{ secrets.BASTION_USER }}@${{ secrets.BASTION_HOSTNAME }}
+          mkdir -p ./.ssh
+          touch ./.ssh/bastion && chmod 600 ./.ssh/bastion
+          echo "${{ secrets.BASTION_KEY }}" > ./.ssh/bastion
+          ssh -T -i "./.ssh/bastion" \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.BASTION_USER }}@${{ secrets.BASTION_HOSTNAME }}
           echo "hello"
