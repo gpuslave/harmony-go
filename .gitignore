@@ -27,3 +27,5 @@ go.work.sum
 
 # test dirs
 # src/web/test/*
+
+.github/workflows/release.yml

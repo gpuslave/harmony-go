@@ -1,4 +1,4 @@
-FROM gcr.io/distroless/base-debian11
+FROM gcr.io/distroless/static-debian12
 ARG BINARY_NAME
 
 USER nonroot:nonroot
