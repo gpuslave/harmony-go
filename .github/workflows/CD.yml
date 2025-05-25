@@ -295,6 +295,7 @@ jobs:
           --timeout=7m
 
       - name: Generate Deployment Summary
+        id: gen-dep-summary
         run: |-
           echo "### Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Namespace:** ${{ needs.setup.outputs.namespace }}" >> $GITHUB_STEP_SUMMARY
@@ -304,6 +305,9 @@ jobs:
           --template "{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}")
           echo "- **IP:** http://${SERVICE_IP%VIP}" >> $GITHUB_STEP_SUMMARY
 
+          echo "service_ip=http://${SERVICE_IP%VIP}" >> $GITHUB_OUTPUT
+
+
       - name: Add PR comment with deployment info
         if: github.event_name == 'pull_request' && github.event.action != 'closed'
         uses: actions/github-script@v7
@@ -312,12 +316,14 @@ jobs:
             const namespace = '${{ needs.setup.outputs.namespace }}';
             const imageTag = '${{ needs.setup.outputs.image_tag }}';
             const releaseName = '${{ needs.setup.outputs.release_name }}';
+            const serviceIp = '${{ steps.gen-dep-summary.outputs.service_ip }}';
             
             const comment = `🚀 **PR Environment Deployed**
             
             - **Namespace:** \`${namespace}\`
             - **Release:** \`${releaseName}\`
             - **Image Tag:** \`${imageTag}\`
+            - **Service IP:** \`${serviceIp}\`
             
             This environment will be automatically cleaned up when the PR is merged or closed.`;
             
