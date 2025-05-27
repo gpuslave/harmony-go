@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"fmt"
+	"math/rand"
 
 	"github.com/gorilla/websocket"
 )
@@ -39,6 +40,7 @@ type Client struct {
 	conn *websocket.Conn
 
 	send chan []byte
+	Name string // Add this field
 }
 
 func (c *Client) writePump() {
@@ -104,7 +106,9 @@ func (c *Client) readPump() {
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 
-		c.hub.broadcast <- message
+		messageWithName := []byte(client.Name + ": ")
+		messageWithName = append(messageWithName, message...)
+		c.hub.broadcast <- messageWithName // Broadcast this instead of 'message'
 	}
 }
 
@@ -177,7 +181,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
+	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), Name: generateRandomName()}
 	client.hub.register <- client
 
 	go client.writePump()
@@ -185,6 +189,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	fmt.Println("Init server...")
 	flag.Parse()
 
@@ -207,4 +212,14 @@ func main() {
 	}
 
 	fmt.Println("done.")
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+func generateRandomName() string {
+	b := make([]rune, 7)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }

@@ -171,3 +171,8 @@ html, body {
       border-radius: 0;
   }
 }
+
+.message-sender {
+  font-weight: bold;
+  margin-right: 5px; /* Adds a little space between the name and the message */
+}

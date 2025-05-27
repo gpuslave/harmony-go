@@ -42,7 +42,28 @@ document.addEventListener('DOMContentLoaded', function () {
   function addMessage(text, className) {
     const item = document.createElement("div");
     item.className = `message ${className}`;
-    item.textContent = text;
+
+    if (className.includes("user-message")) {
+      const parts = text.split(/:(.*)/s); // Splits at the first colon
+      const senderName = parts[0];
+      const actualMessage = parts[1] || ""; // Handle if message is empty after colon
+
+      item.innerHTML = ''; // Clear any existing text content
+
+      const senderSpan = document.createElement('span');
+      senderSpan.className = 'message-sender';
+      senderSpan.textContent = senderName + ': '; // Add colon and space for display
+
+      const messageSpan = document.createElement('span');
+      messageSpan.className = 'message-text';
+      messageSpan.textContent = actualMessage;
+
+      item.appendChild(senderSpan);
+      item.appendChild(messageSpan);
+    } else {
+      item.textContent = text;
+    }
+
     appendToLog(item);
   }
 
